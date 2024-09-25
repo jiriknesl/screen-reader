@@ -4,6 +4,10 @@ An easy-to-use, single-file web application for displaying text in a screen-read
 
 ![Screenshot of One File Screen Reader](screenshot.png)
 
+## Codepen
+
+This app is running also on [Codepen](https://codepen.io/jiri-knesl/pen/poMvRbj)
+
 ## Features
 
 - **Single HTML File**: No need for complex setups or installations. Just open the file in your browser.

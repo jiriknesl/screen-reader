@@ -104,8 +104,3 @@ Some features may have limited support on older browsers or devices.
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
----
-
-**MIT License**
-

@@ -103,4 +103,22 @@ Some features may have limited support on older browsers or devices.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License.
+
+
+## Acknowledgments
+
+- **Alpine.js**: A lightweight JavaScript framework used for reactive components.
+- **Bootstrap**: CSS framework for styling and responsive design.
+
+## Author
+
+Made by [Jiri Knesl](https://github.com/jiriknesl/screen-reader)
+
+## Contributing
+
+Contributions are welcome! Feel free to submit a pull request or open an issue for suggestions and improvements.
+
+## Contact
+
+For questions or support, please open an issue on the [GitHub repository](https://github.com/jiriknesl/screen-reader).

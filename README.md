@@ -1,4 +1,4 @@
-# One File Screen Reader
+# One File Teleprompter
 
 An easy-to-use, single-file web application for displaying text in a screen-reading format. Designed for presentations, teleprompting, or aiding reading by displaying text line by line with customizable settings.
 

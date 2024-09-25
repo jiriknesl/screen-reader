@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" x-data="screenReaderApp" :class="{'dark-mode': isDarkMode}">
+<head>
+  <!-- Include Bootstrap CSS -->
+  <link
+    rel="stylesheet"
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+  />
+  <!-- Include Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <title>Screen Reading App</title>
+  <style>
+    /* Reset default margins and paddings */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    /* Apply background and font colors to the body */
+    body {
+      color: var(--font-color);
+      background-color: var(--bg-color);
+      overflow: hidden;
+    }
+
+    .container {
+      min-height: 100%;
+    }
+
+    .reading-content {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      margin: 0;
+      touch-action: pan-y;
+      overflow: hidden;
+    }
+
+    .reading-line-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .reading-line {
+      transition: opacity 0.5s ease, transform 0.5s ease;
+      width: 90%;
+      max-width: 90%;
+      word-wrap: break-word;
+      will-change: transform, opacity;
+    }
+
+    .next-line {
+      opacity: 0.7;
+      color: var(--next-line-color);
+    }
+
+    .stop-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+
+    .control-buttons {
+      position: absolute;
+      bottom: 20px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .control-buttons button {
+      font-size: 18px;
+    }
+
+    footer {
+      margin-top: 50px;
+      text-align: center;
+    }
+
+    :root {
+      --bg-color: #ffffff;
+      --font-color: #222222;
+      --next-line-color: #888888;
+    }
+
+    .dark-mode {
+      --bg-color: #222222;
+      --font-color: #ffffff;
+      --next-line-color: #aaaaaa;
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 768px) {
+      .reading-line-container {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-5">
+    <!-- Form Section -->
+    <div x-show="!isReading">
+      <h1 class="mb-4">Screen Reading App</h1>
+      <div class="form-group">
+        <label for="textInput">Enter Text:</label>
+        <textarea
+          id="textInput"
+          class="form-control"
+          rows="10"
+          x-model="textInput"
+        ></textarea>
+      </div>
+      <div class="form-group">
+        <label for="maxLineLength">Maximum Line Length (characters):</label>
+        <input
+          type="number"
+          id="maxLineLength"
+          class="form-control"
+          x-model.number="maxLineLength"
+          placeholder="e.g., 60"
+        />
+      </div>
+      <div class="form-group">
+        <label for="timePerLine">Time per Line (milliseconds):</label>
+        <input
+          type="number"
+          id="timePerLine"
+          class="form-control"
+          x-model.number="timePerLine"
+        />
+      </div>
+      <!-- Preview Next Line Checkbox -->
+      <div class="form-group form-check mt-3">
+        <input type="checkbox" class="form-check-input" id="previewNextLineToggle" x-model="previewNextLine">
+        <label class="form-check-label" for="previewNextLineToggle" :style="{ color: isDarkMode ? '#ffffff' : '#222222' }">Preview Next Line</label>
+      </div>
+
+      <button class="btn btn-secondary mr-2" @click="formatText">Format Text</button>
+      <button class="btn btn-primary mr-2" @click="startReading">Start</button>
+
+      <!-- Dark Mode Switcher -->
+      <div class="form-group form-check mt-3">
+        <input type="checkbox" class="form-check-input" id="darkModeToggle" x-model="isDarkMode">
+        <label class="form-check-label" for="darkModeToggle" :style="{ color: isDarkMode ? '#ffffff' : '#222222' }">Dark Mode</label>
+      </div>
+
+      <!-- Footer -->
+      <footer x-show="!isReading">
+        Made by <a :style="{ color: isDarkMode ? '#ffffff' : '#222222' }" href="https://github.com/jiriknesl/screen-reader">Jiri Knesl</a>
+      </footer>
+    </div>
+
+    <!-- Reading Content Section -->
+    <div
+      x-show="isReading"
+      class="reading-content"
+      @keydown.window="handleKeydown($event)"
+      @touchstart="handleTouchStart($event)"
+      @touchend="handleTouchEnd($event)"
+    >
+      <!-- Reading Lines Container -->
+      <div class="reading-line-container">
+        <!-- Current Line -->
+        <div
+          class="reading-line"
+          x-bind:class="animationClass"
+          x-text="currentLine"
+          x-ref="readingLine"
+          x-bind:style="{'font-size': dynamicFontSize + 'px'}"
+        ></div>
+        <!-- Next Line -->
+        <template x-if="previewNextLine && hasNextLine()">
+          <div
+            class="reading-line next-line"
+            x-text="nextLineText"
+            x-bind:style="{'font-size': nextLineFontSize + 'px'}"
+          ></div>
+        </template>
+      </div>
+
+      <!-- Control Buttons -->
+      <div class="control-buttons">
+        <button class="btn btn-secondary" @click="previousLine"><<</button>
+        <button class="btn btn-secondary" @click="togglePauseResume" x-text="isPaused ? 'Resume' : 'Pause'"></button>
+        <button class="btn btn-secondary" @click="nextLine">>></button>
+      </div>
+
+      <!-- Stop Button -->
+      <button class="btn btn-secondary stop-button" @click="stopReading">Stop</button>
+    </div>
+  </div>
+
+  <script>
+    function screenReaderApp() {
+      return {
+        textInput: '',
+        maxLineLength: 60, // Default maximum line length
+        timePerLine: 1000,
+        lines: [],
+        currentLineIndex: 0,
+        isReading: false,
+        intervalId: null,
+        currentLine: '',
+        nextLineText: '',
+        isPaused: false,
+        isDarkMode: JSON.parse(localStorage.getItem('isDarkMode')) || false,
+        previewNextLine: false,
+        touchStartX: 0,
+        touchEndX: 0,
+        animationClass: '',
+        dynamicFontSize: 0,
+        nextLineFontSize: 0,
+        startReading() {
+          // Split the text input into lines and ignore empty lines
+          this.lines = this.textInput.split('\n').filter(line => line.trim() !== '');
+          this.currentLineIndex = 0;
+          this.isReading = true;
+          this.isPaused = false;
+          this.updateCurrentLine();
+          this.startInterval();
+
+          // Watch for changes in isDarkMode and persist to localStorage
+          this.$watch('isDarkMode', (value) => {
+            localStorage.setItem('isDarkMode', JSON.stringify(value));
+          });
+        },
+        startInterval() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+          }
+          this.intervalId = setInterval(() => {
+            if (!this.isPaused) {
+              this.nextLine();
+            }
+          }, this.timePerLine);
+        },
+        updateCurrentLine(direction = 'next') {
+          // Set current line
+          this.currentLine = this.lines[this.currentLineIndex];
+
+          // Set next line if preview is enabled
+          if (this.previewNextLine && this.hasNextLine()) {
+            this.nextLineText = this.lines[this.currentLineIndex + 1];
+          } else {
+            this.nextLineText = '';
+          }
+
+          // Calculate font sizes
+          this.calculateFontSize();
+
+          // Animation classes
+          this.animationClass = direction === 'next' ? 'reading-line enter' : 'reading-line leave';
+          // Force a reflow to restart the animation
+          void this.$refs.readingLine.offsetWidth;
+
+          // Add active class after a tick
+          setTimeout(() => {
+            this.animationClass = direction === 'next' ? 'reading-line enter-active' : 'reading-line leave-active';
+          }, 10);
+        },
+        nextLine() {
+          if (this.currentLineIndex < this.lines.length - 1) {
+            this.currentLineIndex++;
+            this.updateCurrentLine('next');
+          } else {
+            this.stopReading();
+          }
+        },
+        previousLine() {
+          if (this.currentLineIndex > 0) {
+            this.currentLineIndex--;
+            this.updateCurrentLine('prev');
+          }
+        },
+        pauseReading() {
+          this.isPaused = true;
+        },
+        resumeReading() {
+          this.isPaused = false;
+        },
+        togglePauseResume() {
+          if (this.isPaused) {
+            this.resumeReading();
+          } else {
+            this.pauseReading();
+          }
+        },
+        stopReading() {
+          if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+          }
+          this.isReading = false;
+          this.currentLine = '';
+          this.nextLineText = '';
+          this.isPaused = false;
+        },
+        handleKeydown(event) {
+          if (event.key === ' ') {
+            event.preventDefault(); // Prevent scrolling
+            this.togglePauseResume();
+          } else if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            this.previousLine();
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            this.nextLine();
+          }
+        },
+        formatText() {
+          const words = this.textInput.split(/\s+/);
+          let formattedText = '';
+          let line = '';
+          for (let word of words) {
+            if ((line + word).length > this.maxLineLength) {
+              formattedText += line.trim() + '\n';
+              line = word + ' ';
+            } else {
+              line += word + ' ';
+            }
+          }
+          formattedText += line.trim();
+          this.textInput = formattedText.trim();
+        },
+        handleTouchStart(event) {
+          this.touchStartX = event.changedTouches[0].screenX;
+        },
+        handleTouchEnd(event) {
+          this.touchEndX = event.changedTouches[0].screenX;
+          this.handleSwipeGesture();
+        },
+        handleSwipeGesture() {
+          const swipeThreshold = 50; // Minimum distance (in pixels) for a swipe
+          const deltaX = this.touchEndX - this.touchStartX;
+
+          if (Math.abs(deltaX) > swipeThreshold) {
+            if (deltaX < 0) {
+              // Swipe Left
+              this.nextLine();
+            } else {
+              // Swipe Right
+              this.previousLine();
+            }
+          }
+        },
+        calculateFontSize() {
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const baseFontSize = Math.min(viewportWidth, viewportHeight) * 0.08; // 8% of smaller dimension
+
+          // Calculate for current line
+          const charCountCurrent = this.currentLine.length;
+          const estimatedWidthCurrent = charCountCurrent * (baseFontSize * 0.6);
+          let fontSizeCurrent = baseFontSize;
+
+          if (estimatedWidthCurrent > viewportWidth * 0.9) {
+            fontSizeCurrent = (viewportWidth * 0.9) / (charCountCurrent * 0.6);
+          }
+
+          this.dynamicFontSize = fontSizeCurrent;
+
+          // Calculate for next line
+          if (this.previewNextLine && this.nextLineText) {
+            const baseFontSizeNext = fontSizeCurrent * 0.7; // 70% of current line font size
+            const charCountNext = this.nextLineText.length;
+            const estimatedWidthNext = charCountNext * (baseFontSizeNext * 0.6);
+            let fontSizeNext = baseFontSizeNext;
+
+            if (estimatedWidthNext > viewportWidth * 0.9) {
+              fontSizeNext = (viewportWidth * 0.9) / (charCountNext * 0.6);
+            }
+
+            this.nextLineFontSize = fontSizeNext;
+          }
+        },
+        hasNextLine() {
+          return this.currentLineIndex < this.lines.length - 1;
+        },
+        init() {
+          // Initialize dark mode preference
+          this.$watch('isDarkMode', (value) => {
+            localStorage.setItem('isDarkMode', JSON.stringify(value));
+          });
+        },
+      };
+    }
+  </script>
+</body>
+</html>
